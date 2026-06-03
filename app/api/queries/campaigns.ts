@@ -19,7 +19,10 @@ export async function findCampaignById(id: number, userId: number) {
 }
 
 export async function createCampaign(data: InsertCampaign) {
-  const [result] = await getDb().insert(campaigns).values(data).$returningId();
+  const [result] = await getDb()
+    .insert(campaigns)
+    .values(data)
+    .returning({ id: campaigns.id });
   return findCampaignById(result.id, data.userId);
 }
 
@@ -47,7 +50,10 @@ export async function findStepsByCampaign(campaignId: number) {
 }
 
 export async function createSequenceStep(data: InsertSequenceStep) {
-  const [result] = await getDb().insert(sequenceSteps).values(data).$returningId();
+  const [result] = await getDb()
+    .insert(sequenceSteps)
+    .values(data)
+    .returning({ id: sequenceSteps.id });
   return getDb().query.sequenceSteps.findFirst({
     where: eq(sequenceSteps.id, result.id),
   });

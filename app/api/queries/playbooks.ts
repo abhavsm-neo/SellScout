@@ -17,7 +17,10 @@ export async function findPlaybookById(id: number, userId: number) {
 }
 
 export async function createPlaybook(data: InsertPlaybook) {
-  const [result] = await getDb().insert(playbooks).values(data).$returningId();
+  const [result] = await getDb()
+    .insert(playbooks)
+    .values(data)
+    .returning({ id: playbooks.id });
   return findPlaybookById(result.id, data.userId);
 }
 

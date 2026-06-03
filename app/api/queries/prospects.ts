@@ -27,16 +27,22 @@ export async function findProspectById(id: number, userId: number) {
 }
 
 export async function createProspect(data: InsertProspect) {
-  const [result] = await getDb().insert(prospects).values(data).$returningId();
+  const [result] = await getDb()
+    .insert(prospects)
+    .values(data)
+    .returning({ id: prospects.id });
   return findProspectById(result.id, data.userId);
 }
 
 export async function createProspectsBatch(data: InsertProspect[]) {
   if (data.length === 0) return [];
   const db = getDb();
-  const results = await db.insert(prospects).values(data).$returningId();
+  const results = await db
+    .insert(prospects)
+    .values(data)
+    .returning({ id: prospects.id });
   return Promise.all(
-    results.map((r, i) => findProspectById(r.id, data[i].userId))
+    results.map((r: { id: number }, i: number) => findProspectById(r.id, data[i].userId))
   );
 }
 
