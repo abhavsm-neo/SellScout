@@ -1,6 +1,6 @@
 import { getDb } from "./connection";
 import { campaigns, emailEvents } from "@db/schema";
-import { eq, and, gte, sql, count, desc } from "drizzle-orm";
+import { eq, and, gte, sql, desc } from "drizzle-orm";
 
 export async function getDashboardMetrics(userId: number) {
   const db = getDb();
@@ -11,7 +11,7 @@ export async function getDashboardMetrics(userId: number) {
       totalOpened: sql<number>`COALESCE(SUM(${campaigns.totalOpened}), 0)`,
       totalReplied: sql<number>`COALESCE(SUM(${campaigns.totalReplied}), 0)`,
       meetingsBooked: sql<number>`COALESCE(SUM(${campaigns.meetingsBooked}), 0)`,
-      activeCampaigns: count(),
+      activeCampaigns: sql<number>`COUNT(CASE WHEN ${campaigns.status} = 'active' THEN 1 END)`,
     })
     .from(campaigns)
     .where(eq(campaigns.userId, userId));

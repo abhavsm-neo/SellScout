@@ -86,10 +86,15 @@ function HeroSphere() {
     let entranceProgress = 0;
     const entranceDuration = 90; // frames
 
+    // Cache original positions to avoid cloning every frame
+    const originalPositions = new Float32Array(geometry.attributes.position.array);
+    let frameCount = 0;
+
     // Animation
     let frame: number;
     const animate = () => {
       frame = requestAnimationFrame(animate);
+      frameCount++;
 
       // Entrance
       if (entranceProgress < 1) {
@@ -115,12 +120,11 @@ function HeroSphere() {
       // Deform vertices
       const posAttr = geometry.attributes.position;
       const posArray = posAttr.array as Float32Array;
-      const originalPos = geometry.attributes.position.clone().array as Float32Array;
 
       for (let i = 0; i < posArray.length; i += 3) {
-        const vx = originalPos[i];
-        const vy = originalPos[i + 1];
-        const vz = originalPos[i + 2];
+        const vx = originalPositions[i];
+        const vy = originalPositions[i + 1];
+        const vz = originalPositions[i + 2];
 
         const dx = vx - effector.x;
         const dy = vy - effector.y;
@@ -152,7 +156,10 @@ function HeroSphere() {
         }
       }
       posAttr.needsUpdate = true;
-      geometry.computeVertexNormals();
+      // Only recompute normals every 6 frames (~10fps) to save CPU
+      if (frameCount % 6 === 0) {
+        geometry.computeVertexNormals();
+      }
 
       // Auto rotation
       const mouseNearCenter = Math.abs(mouseRef.current.x) < 0.3 && Math.abs(mouseRef.current.y) < 0.3;

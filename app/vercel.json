@@ -11,7 +11,7 @@
   ],
   "headers": [
     {
-      "source": "/api/trpc/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",

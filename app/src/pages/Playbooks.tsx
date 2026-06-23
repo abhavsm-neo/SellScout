@@ -45,7 +45,7 @@ function dbToPlaybook(db: DBPlaybook): Playbook {
     id: String(db.id),
     name: db.name,
     color: db.color,
-    status: db.status === 'archived' ? 'draft' : db.status,
+    status: db.status,
     description: db.description || '',
     productName: db.productName || undefined,
     tagline: db.tagline || undefined,
@@ -71,7 +71,7 @@ function dbToPlaybook(db: DBPlaybook): Playbook {
 }
 
 /* ─── Playbook Card ─── */
-function PlaybookCard({ playbook, onEdit }: { playbook: Playbook; onEdit: (p: Playbook) => void }) {
+function PlaybookCard({ playbook, onEdit, onDelete }: { playbook: Playbook; onEdit: (p: Playbook) => void; onDelete: (id: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -115,7 +115,7 @@ function PlaybookCard({ playbook, onEdit }: { playbook: Playbook; onEdit: (p: Pl
                     <Copy className="w-3.5 h-3.5" /> Duplicate
                   </button>
                   <div className="border-t border-white/[0.06] my-1" />
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger/70 hover:text-danger hover:bg-white/[0.04] transition-colors text-left">
+                  <button onClick={() => { onDelete(playbook.id); setMenuOpen(false); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger/70 hover:text-danger hover:bg-white/[0.04] transition-colors text-left">
                     <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>
                 </motion.div>
@@ -151,6 +151,13 @@ function PlaybookEditor({ playbook, onBack }: { playbook: Playbook; onBack: () =
     },
     onError: (err) => addToast('error', err.message),
   });
+  const createMutation = trpc.playbook.create.useMutation({
+    onSuccess: () => {
+      addToast('success', 'Playbook created successfully');
+      setIsDirty(false);
+    },
+    onError: (err) => addToast('error', err.message),
+  });
 
   const updateField = (field: string, value: unknown) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -159,7 +166,20 @@ function PlaybookEditor({ playbook, onBack }: { playbook: Playbook; onBack: () =
 
   const handleSave = () => {
     if (playbook.id === 'new') {
-      addToast('info', 'Create playbook via API');
+      createMutation.mutate({
+        name: form.name,
+        description: form.description || undefined,
+        productName: form.productName || undefined,
+        tagline: form.tagline || undefined,
+        category: form.category || undefined,
+        valuePropositions: form.valuePropositions || undefined,
+        icpTitle: form.icpTitle || undefined,
+        companySizes: form.companySizes || undefined,
+        industries: form.industries || undefined,
+        painPoints: form.painPoints || undefined,
+        tone: form.tone || undefined,
+        differentiator: form.differentiator || undefined,
+      });
       return;
     }
     updateMutation.mutate({
@@ -377,8 +397,16 @@ export default function Playbooks() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const { user } = useAuth();
+  const { addToast } = useToast();
 
   const playbookQuery = trpc.playbook.list.useQuery(undefined, { enabled: !!user });
+  const deleteMutation = trpc.playbook.delete.useMutation({
+    onSuccess: () => {
+      addToast('success', 'Playbook deleted');
+      playbookQuery.refetch();
+    },
+    onError: (err) => addToast('error', err.message),
+  });
 
   const rawPlaybooks = user && playbookQuery.data
     ? playbookQuery.data.map(dbToPlaybook)
@@ -414,6 +442,7 @@ export default function Playbooks() {
               <option value="active">Active</option>
               <option value="draft">Draft</option>
               <option value="paused">Paused</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
           <button onClick={() => setEditingPlaybook({ id: 'new', name: 'New Playbook', color: '#C8A45E', status: 'draft', description: '', updatedAt: 'Just now', templateCount: 0, campaignCount: 0 })} className="flex items-center gap-2 bg-gold text-[#050505] px-5 py-2.5 rounded-xl text-[13px] font-medium tracking-[0.04em] hover:scale-[1.02] transition-all">
@@ -430,7 +459,7 @@ export default function Playbooks() {
 
           {filtered.map((playbook, i) => (
             <motion.div key={playbook.id} initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: i * 0.08 }}>
-              <PlaybookCard playbook={playbook} onEdit={setEditingPlaybook} />
+              <PlaybookCard playbook={playbook} onEdit={setEditingPlaybook} onDelete={(id) => deleteMutation.mutate({ id: Number(id) })} />
             </motion.div>
           ))}
         </div>

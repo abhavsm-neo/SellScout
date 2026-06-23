@@ -2,7 +2,7 @@ export interface Playbook {
   id: string;
   name: string;
   color: string;
-  status: 'draft' | 'active' | 'paused';
+  status: 'draft' | 'active' | 'paused' | 'archived';
   description: string;
   updatedAt: string;
   templateCount: number;

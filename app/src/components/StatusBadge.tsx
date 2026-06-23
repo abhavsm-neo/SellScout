@@ -1,5 +1,5 @@
 interface StatusBadgeProps {
-  status: 'draft' | 'active' | 'paused' | 'completed' | 'error';
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'error';
 }
 
 const styles = {
@@ -7,6 +7,7 @@ const styles = {
   active: 'bg-success/12 text-success',
   paused: 'bg-gold/12 text-gold',
   completed: 'bg-info/12 text-info',
+  archived: 'bg-white/[0.04] text-white/40',
   error: 'bg-danger/12 text-danger',
 };
 
@@ -15,6 +16,7 @@ const labels = {
   active: 'Active',
   paused: 'Paused',
   completed: 'Completed',
+  archived: 'Archived',
   error: 'Error',
 };
 

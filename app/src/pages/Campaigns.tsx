@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, MoreVertical, ChevronLeft, ChevronRight, Mail, Upload, Users, Sparkles, Play, Pause, BarChart3, Trash2, Copy, Send, CheckCircle2 } from 'lucide-react';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/useToast';
 import PageLayout from '@/components/PageLayout';
 import PageHeader from '@/components/PageHeader';
 import StatusBadge from '@/components/StatusBadge';
@@ -41,9 +42,29 @@ function dbToCampaign(db: DBCampaign) {
 }
 
 /* ─── Campaign Row ─── */
-function CampaignRow({ campaign, index }: { campaign: ReturnType<typeof dbToCampaign>; index: number }) {
+function CampaignRow({ campaign, index, avgReply, onRefresh }: { campaign: ReturnType<typeof dbToCampaign>; index: number; avgReply: number; onRefresh: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const replyUp = campaign.replyRate !== null && campaign.replyRate > 30;
+  const replyAboveAvg = campaign.replyRate !== null && campaign.replyRate > avgReply;
+  const { addToast } = useToast();
+
+  const deleteMutation = trpc.campaign.delete.useMutation({
+    onSuccess: () => { addToast('success', 'Campaign deleted'); onRefresh(); },
+    onError: (err) => addToast('error', err.message),
+  });
+  const updateMutation = trpc.campaign.update.useMutation({
+    onSuccess: () => { addToast('success', 'Campaign updated'); onRefresh(); },
+    onError: (err) => addToast('error', err.message),
+  });
+
+  const toggleStatus = () => {
+    const nextStatus = campaign.status === 'active' ? 'paused' : 'active';
+    updateMutation.mutate({ id: Number(campaign.id), data: { status: nextStatus } });
+    setMenuOpen(false);
+  };
+  const handleDelete = () => {
+    deleteMutation.mutate({ id: Number(campaign.id) });
+    setMenuOpen(false);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.06 }} className="bg-surface border border-white/[0.06] rounded-xl p-5 hover:bg-surface-elevated transition-colors duration-150">
@@ -57,7 +78,7 @@ function CampaignRow({ campaign, index }: { campaign: ReturnType<typeof dbToCamp
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-2 lg:gap-x-12">
           <div><p className="text-xs text-white/35 uppercase tracking-wider">Sent</p><p className="text-sm font-mono text-white/60">{campaign.sent?.toLocaleString() || '—'}</p></div>
-          <div><p className="text-xs text-white/35 uppercase tracking-wider">Reply Rate</p><p className={`text-sm font-mono flex items-center gap-1 ${replyUp ? 'text-success' : 'text-white/60'}`}>{campaign.replyRate !== null ? `${campaign.replyRate}%` : '—'}{campaign.replyRate !== null && (replyUp ? '↑' : '↓')}</p></div>
+          <div><p className="text-xs text-white/35 uppercase tracking-wider">Reply Rate</p><p className={`text-sm font-mono flex items-center gap-1 ${replyAboveAvg ? 'text-success' : 'text-white/60'}`}>{campaign.replyRate !== null ? `${campaign.replyRate}%` : '—'}</p></div>
           <div><p className="text-xs text-white/35 uppercase tracking-wider">Meetings</p><p className="text-sm font-mono text-white/60">{campaign.meetings ?? '—'}</p></div>
           <div><p className="text-xs text-white/35 uppercase tracking-wider">Created</p><p className="text-xs text-white/35">{campaign.createdAt}</p></div>
         </div>
@@ -69,10 +90,10 @@ function CampaignRow({ campaign, index }: { campaign: ReturnType<typeof dbToCamp
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="absolute right-0 top-8 z-20 bg-surface-elevated border border-white/[0.06] rounded-xl py-1.5 min-w-[160px] shadow-card">
                   <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.04] text-left"><Copy className="w-3.5 h-3.5" /> Duplicate</button>
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.04] text-left">{campaign.status === 'active' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}{campaign.status === 'active' ? 'Pause' : 'Resume'}</button>
+                  <button onClick={toggleStatus} disabled={updateMutation.isPending} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.04] text-left disabled:opacity-50">{campaign.status === 'active' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}{campaign.status === 'active' ? 'Pause' : 'Resume'}</button>
                   <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-white/60 hover:text-white hover:bg-white/[0.04] text-left"><BarChart3 className="w-3.5 h-3.5" /> View Analytics</button>
                   <div className="border-t border-white/[0.06] my-1" />
-                  <button className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger/70 hover:text-danger hover:bg-white/[0.04] text-left"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
+                  <button onClick={handleDelete} disabled={deleteMutation.isPending} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-danger/70 hover:text-danger hover:bg-white/[0.04] text-left disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /> Delete</button>
                 </motion.div>
               </>
             )}
@@ -371,7 +392,7 @@ export default function Campaigns() {
         </div>
 
         <div className="space-y-2">
-          {filtered.map((campaign, i) => <CampaignRow key={campaign.id} campaign={campaign} index={i} />)}
+          {filtered.map((campaign, i) => <CampaignRow key={campaign.id} campaign={campaign} index={i} avgReply={avgReply} onRefresh={() => campaignQuery.refetch()} />)}
           {filtered.length === 0 && (
             <div className="text-center py-16">
               <div className="w-[120px] h-[120px] bg-surface-elevated border border-dashed border-white/[0.06] rounded-full flex items-center justify-center mx-auto mb-4"><Mail className="w-16 h-16 text-white/35" /></div>

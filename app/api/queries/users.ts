@@ -20,7 +20,10 @@ export async function upsertUser(data: InsertUser) {
     ...data,
   };
 
+  // Auto-assign admin role if OWNER_UNION_ID is configured and matches
   if (
+    env.ownerUnionId &&
+    env.ownerUnionId.length > 0 &&
     values.role === undefined &&
     values.unionId &&
     values.unionId === env.ownerUnionId

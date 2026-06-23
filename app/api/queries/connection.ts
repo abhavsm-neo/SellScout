@@ -23,3 +23,11 @@ export function getClient() {
   }
   return client;
 }
+
+export function closeDb() {
+  if (client) {
+    client.end();
+    instance = undefined as any;
+    client = undefined as any;
+  }
+}
