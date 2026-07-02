@@ -1,0 +1,5 @@
+# Vercel function output directory
+# This directory is empty in the repo; the build script drops
+# the bundled api/index.js here during deployment.
+*
+!.gitignore
