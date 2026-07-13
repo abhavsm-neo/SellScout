@@ -1,4 +1,4 @@
-import { getClient } from "../api/queries/connection";
+import { getClient } from "../server/queries/connection";
 
 async function seed() {
   const sql = getClient();
@@ -85,8 +85,9 @@ async function seed() {
     },
   ];
 
+  const playbookIds: number[] = [];
   for (const pb of playbookData) {
-    await sql`
+    const [row] = await sql`
       INSERT INTO playbooks (
         user_id, name, color, status, description, product_name, tagline, category,
         value_propositions, icp_title, company_sizes, industries, pain_points, tone
@@ -96,8 +97,10 @@ async function seed() {
         ${pb.value_propositions as string[]}, ${pb.icp_title}, ${pb.company_sizes as string[]},
         ${pb.industries as string[]}, ${pb.pain_points as string[]}, ${pb.tone}
       )
+      RETURNING id
     `;
-    console.log("Created playbook:", pb.name);
+    playbookIds.push(row.id);
+    console.log("Created playbook:", pb.name, "id:", row.id);
   }
 
   // Seed prospects
@@ -112,13 +115,95 @@ async function seed() {
     { first_name: "Tom", last_name: "Harris", email: "tom.harris@twilio.com", company: "Twilio", title: "VP of Outbound", industry: "SaaS", company_size: "1000+" },
   ];
 
+  const prospectIds: number[] = [];
   for (const p of prospectList) {
-    await sql`
+    const [row] = await sql`
       INSERT INTO prospects (user_id, first_name, last_name, email, company, title, industry, company_size)
       VALUES (${userId}, ${p.first_name}, ${p.last_name}, ${p.email}, ${p.company}, ${p.title}, ${p.industry}, ${p.company_size})
+      RETURNING id
     `;
+    prospectIds.push(row.id);
   }
   console.log("Created", prospectList.length, "prospects");
+
+  // Seed campaigns linked to playbooks
+  const campaignRows = await sql`
+    INSERT INTO campaigns (user_id, playbook_id, name, status, launched_at, completed_at)
+    VALUES
+      (${userId}, ${playbookIds[0]}, 'SellScout Q3 Outreach', 'active', NOW(), NULL),
+      (${userId}, ${playbookIds[1]}, 'DataSync Enterprise Pilot', 'completed', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 days'),
+      (${userId}, ${playbookIds[0]}, 'SellScout Product Hunt Launch', 'draft', NULL, NULL)
+    RETURNING id, name
+  `;
+  console.log("Created campaigns:", campaignRows.map((r: { id: number; name: string }) => r.name).join(", "));
+
+  const activeCampaignId = campaignRows[0].id;
+  const completedCampaignId = campaignRows[1].id;
+
+  // Seed sequence steps for the active campaign
+  const stepRows = await sql`
+    INSERT INTO sequence_steps (campaign_id, step_order, day, type, label, subject, body)
+    VALUES
+      (${activeCampaignId}, 1, 0, 'email', 'Initial Outreach', 'Quick question about {{company}}''s sales process', 'Hi {{first_name}},\n\nI noticed {{company}} has been scaling fast and wanted to reach out about how teams like yours are using SellScout to book more meetings with AI-personalized outbound.\n\nWould you be open to a quick conversation next week?\n\nBest,\nAlex'),
+      (${activeCampaignId}, 2, 3, 'email', 'Follow-up', 'Re: {{company}}''s outbound strategy', 'Hi {{first_name}},\n\nJust following up on my email from a few days ago. I''d love to show you how SellScout helps {{company}} increase reply rates without adding more manual work.\n\nLet me know if you''re interested.\n\nBest,\nAlex')
+    RETURNING id
+  `;
+  console.log("Created", stepRows.length, "sequence steps for active campaign");
+
+  // Seed campaign-prospect junction records
+  const cpStatuses = [
+    { campaignId: activeCampaignId, prospectId: prospectIds[0], status: "sent" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[1], status: "opened" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[2], status: "replied" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[3], status: "clicked" },
+    { campaignId: completedCampaignId, prospectId: prospectIds[4], status: "sent" },
+  ];
+
+  for (const cp of cpStatuses) {
+    await sql`
+      INSERT INTO campaign_prospects (campaign_id, prospect_id, status, sent_at)
+      VALUES (${cp.campaignId}, ${cp.prospectId}, ${cp.status}, NOW())
+    `;
+  }
+  console.log("Created", cpStatuses.length, "campaign-prospect records");
+
+  // Seed email events for analytics
+  const eventRows = [
+    { campaignId: activeCampaignId, prospectId: prospectIds[0], type: "send" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[0], type: "open" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[1], type: "send" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[1], type: "open" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[1], type: "click" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[2], type: "send" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[2], type: "open" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[2], type: "reply" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[3], type: "send" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[3], type: "open" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[3], type: "click" },
+    { campaignId: activeCampaignId, prospectId: prospectIds[3], type: "click" },
+    { campaignId: completedCampaignId, prospectId: prospectIds[4], type: "send" },
+  ];
+
+  for (const ev of eventRows) {
+    await sql`
+      INSERT INTO email_events (campaign_id, prospect_id, type)
+      VALUES (${ev.campaignId}, ${ev.prospectId}, ${ev.type})
+    `;
+  }
+  console.log("Created", eventRows.length, "email events");
+
+  // Update campaign counters to match seeded events
+  await sql`
+    UPDATE campaigns
+    SET total_sent = 4, total_opened = 4, total_clicked = 3, total_replied = 1
+    WHERE id = ${activeCampaignId}
+  `;
+  await sql`
+    UPDATE campaigns
+    SET total_sent = 1
+    WHERE id = ${completedCampaignId}
+  `;
+  console.log("Updated campaign counters");
 
   console.log("\n✅ Database seeded successfully!");
 }
