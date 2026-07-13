@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "./middleware";
+import { createRouter, authedQuery, publicQuery } from "./middleware";
 import {
   findPlaybooksByUser,
   findPlaybookById,
@@ -9,8 +9,8 @@ import {
 } from "./queries/playbooks";
 
 export const playbookRouter = createRouter({
-  list: authedQuery.query(({ ctx }) =>
-    findPlaybooksByUser(ctx.user.id),
+  list: publicQuery.query(({ ctx }) =>
+    findPlaybooksByUser(ctx.user?.id ?? 1),
   ),
 
   byId: authedQuery
