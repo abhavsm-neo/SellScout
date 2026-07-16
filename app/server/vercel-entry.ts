@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { handle } from "hono/vercel";
 import { bodyLimit } from "hono/body-limit";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./router";
@@ -32,5 +31,5 @@ app.get("/health", (c) => c.json({ ok: true, env: "vercel" }));
 // 404 for unmatched API routes
 app.all("/*", (c) => c.json({ error: "Not Found" }, 404));
 
-// Vercel serverless handler
-export default handle(app);
+// Export the Hono app directly for Vercel
+export default app;
