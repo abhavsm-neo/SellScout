@@ -29286,13 +29286,21 @@ function required2(name) {
   }
   return value ?? "";
 }
+function optional2(name, fallback = "") {
+  return process.env[name] || fallback;
+}
+if (process.env.NODE_ENV === "production" && (!process.env.APP_ID || !process.env.APP_SECRET)) {
+  console.warn(
+    "[env] APP_ID/APP_SECRET not set \u2014 OAuth login is disabled. Set them in Vercel \u2192 Settings \u2192 Environment Variables to enable it."
+  );
+}
 var env = {
-  appId: required2("APP_ID"),
-  appSecret: required2("APP_SECRET"),
+  appId: optional2("APP_ID"),
+  appSecret: optional2("APP_SECRET"),
   isProduction: process.env.NODE_ENV === "production",
   databaseUrl: required2("DATABASE_URL"),
-  kimiAuthUrl: required2("KIMI_AUTH_URL"),
-  kimiOpenUrl: required2("KIMI_OPEN_URL"),
+  kimiAuthUrl: optional2("KIMI_AUTH_URL", "https://platform.kimi.ai"),
+  kimiOpenUrl: optional2("KIMI_OPEN_URL"),
   ownerUnionId: process.env.OWNER_UNION_ID ?? ""
 };
 
