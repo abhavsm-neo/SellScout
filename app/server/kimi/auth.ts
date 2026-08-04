@@ -8,7 +8,7 @@ import { Session } from "@contracts/constants";
 import { Errors } from "@contracts/errors";
 import { signSessionToken, verifySessionToken } from "./session";
 import { users as kimiUsers } from "./platform";
-import { findUserByUnionId, upsertUser } from "../queries/users";
+import { findUserById, findUserByUnionId, upsertUser } from "../queries/users";
 import type { TokenResponse } from "./types";
 
 async function exchangeAuthCode(
@@ -56,19 +56,34 @@ async function verifyAccessToken(
 export async function authenticateRequest(headers: Headers) {
   const cookies = cookie.parse(headers.get("cookie") || "");
   const token = cookies[Session.cookieName];
-  if (!token) {
-    console.warn("[auth] No session cookie found in request.");
-    throw Errors.forbidden("Invalid authentication token.");
+  if (token) {
+    const claim = await verifySessionToken(token);
+    if (claim) {
+      const user = await findUserByUnionId(claim.unionId);
+      if (user) {
+        return user;
+      }
+    }
   }
-  const claim = await verifySessionToken(token);
-  if (!claim) {
-    throw Errors.forbidden("Invalid authentication token.");
+
+  // Demo mode: no valid session — serve the configured demo user instead.
+  // Enabled only when DEMO_USER_ID is set; intended for demo deployments
+  // with seeded fake data, never for real user data.
+  if (env.demoUserId) {
+    const id = Number(env.demoUserId);
+    if (Number.isInteger(id) && id > 0) {
+      const demoUser = await findUserById(id);
+      if (demoUser) {
+        return demoUser;
+      }
+    }
+    console.warn(
+      `[auth] DEMO_USER_ID="${env.demoUserId}" did not resolve to a user.`,
+    );
   }
-  const user = await findUserByUnionId(claim.unionId);
-  if (!user) {
-    throw Errors.forbidden("User not found. Please re-login.");
-  }
-  return user;
+
+  console.warn("[auth] No valid session found in request.");
+  throw Errors.forbidden("Invalid authentication token.");
 }
 
 export function createOAuthCallbackHandler() {

@@ -29301,6 +29301,9 @@ var env = {
   databaseUrl: required2("DATABASE_URL"),
   kimiAuthUrl: optional2("KIMI_AUTH_URL", "https://platform.kimi.ai"),
   kimiOpenUrl: optional2("KIMI_OPEN_URL"),
+  // Demo mode: when set to a numeric user id, requests without a valid
+  // session are treated as that user. NEVER enable with real user data.
+  demoUserId: optional2("DEMO_USER_ID"),
   ownerUnionId: process.env.OWNER_UNION_ID ?? ""
 };
 
@@ -31756,6 +31759,10 @@ async function findUserByUnionId(unionId) {
   const rows = await getDb().select().from(users).where(eq(users.unionId, unionId)).limit(1);
   return rows.at(0);
 }
+async function findUserById(id) {
+  const rows = await getDb().select().from(users).where(eq(users.id, id)).limit(1);
+  return rows.at(0);
+}
 async function upsertUser(data) {
   const values2 = { ...data };
   const updateSet = {
@@ -31807,19 +31814,29 @@ async function verifyAccessToken(accessToken) {
 async function authenticateRequest(headers) {
   const cookies = cookie2.parse(headers.get("cookie") || "");
   const token = cookies[Session.cookieName];
-  if (!token) {
-    console.warn("[auth] No session cookie found in request.");
-    throw Errors2.forbidden("Invalid authentication token.");
+  if (token) {
+    const claim = await verifySessionToken(token);
+    if (claim) {
+      const user = await findUserByUnionId(claim.unionId);
+      if (user) {
+        return user;
+      }
+    }
   }
-  const claim = await verifySessionToken(token);
-  if (!claim) {
-    throw Errors2.forbidden("Invalid authentication token.");
+  if (env.demoUserId) {
+    const id = Number(env.demoUserId);
+    if (Number.isInteger(id) && id > 0) {
+      const demoUser = await findUserById(id);
+      if (demoUser) {
+        return demoUser;
+      }
+    }
+    console.warn(
+      `[auth] DEMO_USER_ID="${env.demoUserId}" did not resolve to a user.`
+    );
   }
-  const user = await findUserByUnionId(claim.unionId);
-  if (!user) {
-    throw Errors2.forbidden("User not found. Please re-login.");
-  }
-  return user;
+  console.warn("[auth] No valid session found in request.");
+  throw Errors2.forbidden("Invalid authentication token.");
 }
 function createOAuthCallbackHandler() {
   return async (c) => {

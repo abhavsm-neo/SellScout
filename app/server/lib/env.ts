@@ -33,5 +33,8 @@ export const env = {
   databaseUrl: required("DATABASE_URL"),
   kimiAuthUrl: optional("KIMI_AUTH_URL", "https://platform.kimi.ai"),
   kimiOpenUrl: optional("KIMI_OPEN_URL"),
+  // Demo mode: when set to a numeric user id, requests without a valid
+  // session are treated as that user. NEVER enable with real user data.
+  demoUserId: optional("DEMO_USER_ID"),
   ownerUnionId: process.env.OWNER_UNION_ID ?? "",
 };
